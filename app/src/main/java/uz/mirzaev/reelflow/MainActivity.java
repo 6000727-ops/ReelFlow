@@ -123,16 +123,7 @@ public class MainActivity extends Activity {
         LinearLayout settings = box();
         settings.addView(text("03  КОГДА ЛИСТАТЬ", 13, ACCENT, true));
         addGap(settings, 12);
-        Switch smart = new Switch(this);
-        smart.setText("Умное определение окончания");
-        smart.setTextSize(14);
-        smart.setTextColor(TEXT);
-        smart.setChecked(Config.smart(this));
-        smart.setOnCheckedChangeListener((b, checked) ->
-                Config.prefs(this).edit().putBoolean(Config.SMART, checked).apply());
-        settings.addView(smart);
-        addGap(settings, 8);
-        settings.addView(text("Если видеоплеер показывает доступный индикатор просмотра, переключение происходит в конце. Иначе используется интервал ниже.", 12, MUTED, false));
+        settings.addView(text("Ролики перелистываются автоматически через заданное время. ReelFlow не читает содержимое экрана.", 12, MUTED, false));
         addGap(settings, 18);
         intervalText = text("Интервал: " + Config.seconds(this) + " сек.", 16, TEXT, true);
         settings.addView(intervalText);
@@ -160,7 +151,7 @@ public class MainActivity extends Activity {
         addLaunch(launch, "Открыть VK Клипы", Config.VK_CLIPS);
         addLaunch(launch, "Открыть VK Видео", Config.VK_VIDEO);
         addLaunch(launch, "Открыть ВКонтакте", Config.VK);
-        TextView foot = text("By Mirzaev I  •  v0.1", 12, MUTED, false);
+        TextView foot = text("By Mirzaev I  •  v0.2", 12, MUTED, false);
         foot.setGravity(Gravity.CENTER);
         page.addView(foot);
     }
