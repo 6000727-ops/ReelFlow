@@ -13,7 +13,6 @@ import android.os.SystemClock;
 import android.view.Gravity;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
-import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -34,9 +33,6 @@ public class AutoScrollService extends AccessibilityService {
     private String activePackage = null;
     private long currentVideoSince = 0;
     private long lastSwipe = 0;
-    private long lastProgressAt = 0;
-    private double lastProgress = -1;
-    private int forwardSamples = 0;
 
     @Override protected void onServiceConnected() {
         super.onServiceConnected();
@@ -81,55 +77,22 @@ public class AutoScrollService extends AccessibilityService {
             hidePanel();
             return;
         }
-        AccessibilityNodeInfo root = getRootInActiveWindow();
-        if (root == null) {
+        // No screen content or accessibility node inspection.
+        // The service observes only which application is in the foreground.
+        if (!Config.allowed(this, activePackage)) {
             pause();
             hidePanel();
             return;
         }
-        try {
-            CharSequence packageName = root.getPackageName();
-            String pkg = packageName == null ? null : packageName.toString();
-            if (!Config.allowed(this, pkg)) {
-                if (activePackage != null) pause();
-                activePackage = null;
-                hidePanel();
-                return;
-            }
-            if (!pkg.equals(activePackage)) {
-                pause();
-                activePackage = pkg;
-            }
-            showPanel();
-            if (!playing || gesturePending) return;
-            long now = SystemClock.elapsedRealtime();
-            if (now - lastSwipe < 1800) return;
-            if (Config.smart(this)) {
-                double progress = ProgressDetector.probe(root, getResources().getDisplayMetrics().widthPixels);
-                if (progress >= 0) {
-                    boolean increasing = lastProgress >= 0 && progress > lastProgress + .008;
-                    if (increasing && now - lastProgressAt > 300) forwardSamples++;
-                    if (forwardSamples >= 2 && now - currentVideoSince > 3000) {
-                        if (progress >= .985 || (lastProgress >= .90 && progress <= .12)) {
-                            swipeNext();
-                            return;
-                        }
-                    }
-                    lastProgress = progress;
-                    lastProgressAt = now;
-                }
-            }
-            if (now - currentVideoSince >= Config.seconds(this) * 1000L) swipeNext();
-        } finally {
-            root.recycle();
-        }
+        showPanel();
+        if (!playing || gesturePending) return;
+        long now = SystemClock.elapsedRealtime();
+        if (now - lastSwipe < 1800) return;
+        if (now - currentVideoSince >= Config.seconds(this) * 1000L) swipeNext();
     }
 
     private void resetTimer() {
         currentVideoSince = SystemClock.elapsedRealtime();
-        lastProgressAt = 0;
-        lastProgress = -1;
-        forwardSamples = 0;
     }
 
     private void pause() {
