@@ -94,7 +94,7 @@ jobs:
               add(root,"Отключить отслеживание",()->stopService(new Intent(this,PodsService.class)));
               TextView note=new TextView(this);note.setText("После сопряжения AirPods разрешите работу в фоне без ограничений. Заряд считывается из Bluetooth-пакетов с шагом 10%. Данные кейса зависят от доступности сигнала.");note.setTextSize(12);note.setTextColor(0xff9e9fa8);note.setPadding(0,d(this,14),0,0);root.addView(note);
             }
-            void add(LinearLayout root,String label,Runnable r){Button v=new Button(this);v.setText(label);v.setTextAllCaps(false);root.addView(v,new LinearLayout.LayoutParams(-1,d(this,58)));v.setOnClickListener(w->r.run());}
+            void add(LinearLayout root,String label,Runnable r){Button v=new Button(this);v.setText(label);root.addView(v,new LinearLayout.LayoutParams(-1,d(this,58)));v.setOnClickListener(w->r.run());}
             boolean granted(String x){return Build.VERSION.SDK_INT<23||checkSelfPermission(x)==PackageManager.PERMISSION_GRANTED;}
             boolean ready(){return granted(Manifest.permission.BLUETOOTH_SCAN)&&granted(Manifest.permission.BLUETOOTH_CONNECT)&&Settings.canDrawOverlays(this);}
             void permissions(){
