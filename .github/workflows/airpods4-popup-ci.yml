@@ -1,0 +1,169 @@
+name: AirPods 4 Popup APK
+on:
+  push:
+    branches: [airpods4-popup-build-20261105]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Create Android source
+        run: |
+          mkdir -p airpods4/app/src/main/java/uz/mirzaev/airpodspopup
+          cat > airpods4/settings.gradle <<'EOF'
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+          dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
+          rootProject.name = 'AirPods4Popup'
+          include ':app'
+          EOF
+          cat > airpods4/build.gradle <<'EOF'
+          plugins { id 'com.android.application' version '8.9.2' apply false }
+          EOF
+          cat > airpods4/gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          EOF
+          cat > airpods4/app/build.gradle <<'EOF'
+          plugins { id 'com.android.application' }
+          android {
+              namespace 'uz.mirzaev.airpodspopup'
+              compileSdk 35
+              defaultConfig { applicationId 'uz.mirzaev.airpodspopup'; minSdk 26; targetSdk 35; versionCode 2; versionName '0.2' }
+              compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+          }
+          EOF
+          cat > airpods4/app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <uses-feature android:name="android.hardware.bluetooth_le" android:required="true"/>
+            <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation"/>
+            <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
+            <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+            <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+            <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+            <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"/>
+            <application android:allowBackup="false" android:label="AirPods 4 Popup" android:theme="@android:style/Theme.Material.Light.NoActionBar">
+              <activity android:name=".MainActivity" android:exported="true">
+                <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+              </activity>
+              <service android:name=".MainActivity$PodsService" android:exported="false" android:foregroundServiceType="connectedDevice" />
+            </application>
+          </manifest>
+          EOF
+          cat > airpods4/app/src/main/java/uz/mirzaev/airpodspopup/MainActivity.java <<'EOF'
+          package uz.mirzaev.airpodspopup;
+          import android.Manifest;
+          import android.app.*;
+          import android.bluetooth.*;
+          import android.bluetooth.le.*;
+          import android.content.*;
+          import android.content.pm.PackageManager;
+          import android.graphics.*;
+          import android.net.Uri;
+          import android.os.*;
+          import android.provider.Settings;
+          import android.view.*;
+          import android.widget.*;
+          import java.util.*;
+          public class MainActivity extends Activity {
+            static final String START="start", DEMO="demo";
+            static int d(Context c,int n){return (int)(n*c.getResources().getDisplayMetrics().density);}
+            public void onCreate(Bundle b){super.onCreate(b);
+              LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setGravity(Gravity.CENTER_HORIZONTAL);root.setPadding(d(this,18),d(this,24),d(this,18),d(this,14));root.setBackgroundColor(0xff111116);
+              ScrollView scroll=new ScrollView(this);scroll.addView(root);setContentView(scroll);
+              TextView title=new TextView(this);title.setText("AirPods 4 Popup");title.setTextSize(25);title.setTextColor(-1);title.setGravity(Gravity.CENTER);root.addView(title,new LinearLayout.LayoutParams(-1,d(this,65)));
+              TextView brand=new TextView(this);brand.setText("By Mirzaev I");brand.setTextColor(0xffb9bac3);brand.setGravity(Gravity.CENTER);root.addView(brand,new LinearLayout.LayoutParams(-1,d(this,35)));
+              root.addView(new BatteryCard(this,new Levels(90,90,70,false)),new LinearLayout.LayoutParams(-1,d(this,335)));
+              add(root,"Разрешения Bluetooth и всплывающих окон",()->permissions());
+              add(root,"Включить автоматическое окно",()->{if(!ready()){permissions();return;}start(START);});
+              add(root,"Показать окно (тест)",()->{if(!Settings.canDrawOverlays(this)){permissions();return;}start(DEMO);});
+              add(root,"Отключить отслеживание",()->stopService(new Intent(this,PodsService.class)));
+              TextView note=new TextView(this);note.setText("После сопряжения AirPods разрешите работу в фоне без ограничений. Заряд считывается из Bluetooth-пакетов с шагом 10%. Данные кейса зависят от доступности сигнала.");note.setTextSize(12);note.setTextColor(0xff9e9fa8);note.setPadding(0,d(this,14),0,0);root.addView(note);
+            }
+            void add(LinearLayout root,String label,Runnable r){Button v=new Button(this);v.setText(label);v.setTextAllCaps(false);root.addView(v,new LinearLayout.LayoutParams(-1,d(this,58)));v.setOnClickListener(w->r.run());}
+            boolean granted(String x){return Build.VERSION.SDK_INT<23||checkSelfPermission(x)==PackageManager.PERMISSION_GRANTED;}
+            boolean ready(){return granted(Manifest.permission.BLUETOOTH_SCAN)&&granted(Manifest.permission.BLUETOOTH_CONNECT)&&Settings.canDrawOverlays(this);}
+            void permissions(){
+              if(Build.VERSION.SDK_INT>=31&&(!granted(Manifest.permission.BLUETOOTH_SCAN)||!granted(Manifest.permission.BLUETOOTH_CONNECT))){
+                requestPermissions(new String[]{Manifest.permission.BLUETOOTH_SCAN,Manifest.permission.BLUETOOTH_CONNECT},100);return;
+              }
+              if(Build.VERSION.SDK_INT>=33&&!granted(Manifest.permission.POST_NOTIFICATIONS)){requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},101);return;}
+              if(!Settings.canDrawOverlays(this)){startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,Uri.parse("package:"+getPackageName())));return;}
+              Toast.makeText(this,"Разрешения получены",Toast.LENGTH_SHORT).show();
+            }
+            public void onRequestPermissionsResult(int request,String[] ps,int[] gr){super.onRequestPermissionsResult(request,ps,gr);if(request==100||request==101)permissions();}
+            void start(String action){try{startForegroundService(new Intent(this,PodsService.class).setAction(action));Toast.makeText(this,"Запущено",Toast.LENGTH_SHORT).show();}catch(Exception e){Toast.makeText(this,e.getMessage(),Toast.LENGTH_LONG).show();}}
+            static class Levels {
+              final int l,r,c; final boolean charging;
+              Levels(int l,int r,int c,boolean charging){this.l=l;this.r=r;this.c=c;this.charging=charging;}
+              static int battery(int x){return (x&15)==15?-1:Math.min(100,(x&15)*10);}
+              static Levels parse(byte[] b){if(b==null||b.length<11||(b[0]&255)!=7||(b[2]&255)!=1||((b[3]&255)<<8 |(b[4]&255))!=0x1920)return null;
+                int v=b[6]&255; boolean f=(b[5]&64)!=0;return new Levels(battery(f?v:v>>4),battery(f?v>>4:v),battery((b[7]&255)>>4),(b[7]&4)!=0);
+              }
+              int lid(byte[] b){return (b[8]&8)!=0?1:0;}
+            }
+            static class BatteryCard extends View {
+              final Paint p=new Paint(3); Levels values;float s,l,t;
+              BatteryCard(Context c,Levels v){super(c);values=v;setLayerType(LAYER_TYPE_SOFTWARE,null);}
+              void fill(Canvas c,int color,float a,float b,float x,float y,float radius){p.reset();p.setAntiAlias(true);p.setColor(color);c.drawRoundRect(a,b,x,y,radius,radius,p);}
+              void txt(Canvas c,String v,int color,int size,float x,float y,boolean bold){p.reset();p.setAntiAlias(true);p.setColor(color);p.setTypeface(Typeface.create("sans-serif",bold?1:0));p.setTextSize(size);p.setTextAlign(Paint.Align.CENTER);c.drawText(v,x,y,p);}
+              void battery(Canvas c,float cx,int val,String caption){fill(c,0xffe4e4e9,cx-24,251,cx+20,267,4);fill(c,0xffe4e4e9,cx+21,255,cx+24,263,2);if(val>=0)fill(c,val<20?0xfff0bd3a:0xff3bbf68,cx-21,254,cx-21+38*val/100f,264,2);txt(c,val<0?"—":val+"%",0xff202027,19,cx,297,true);txt(c,caption,0xff888891,12,cx,317,false);}
+              @Override protected void onDraw(Canvas c){super.onDraw(c);s=Math.min(getWidth()/360f,getHeight()/335f);l=(getWidth()-360*s)/2;t=(getHeight()-335*s)/2;c.save();c.translate(l,t);c.scale(s,s);
+                fill(c,0xfffafafa,5,5,355,329,35);txt(c,"AirPods 4",0xff161619,22,180,46,true);
+                p.reset();p.setAntiAlias(true);p.setShader(new LinearGradient(90,82,245,223,new int[]{0xffe5e6e9,0xffffffff,0xffc8c9cf},null,Shader.TileMode.CLAMP));c.drawRoundRect(76,127,284,220,45,45,p);p.setShader(null);
+                fill(c,0xffc8c9d0,82,127,278,134,3);fill(c,0xffffffff,87,128,273,177,31);p.setColor(0xff919298);c.drawCircle(180,190,3,p);
+                for(int side=0;side<2;side++){int x=side==0?125:224;p.setColor(0xffd4d5db);c.drawOval(x-12,71,x+13,127,p);p.setColor(-1);c.drawOval(x-10,68,x+11,121,p);fill(c,-1,x-4,110,x+8,157,5);p.setColor(0xffdddddf);c.drawCircle(x+4,147,2,p);}
+                txt(c,"×",0xff79797f,23,325,38,false);int ear=values.l<0?values.r:values.r<0?values.l:Math.min(values.l,values.r);battery(c,109,ear,"Наушники");battery(c,252,values.c,"Кейс");c.restore();
+              }
+            }
+            public static class PodsService extends Service {
+              BluetoothLeScanner scanner; WindowManager wm;View popup;final Handler h=new Handler(Looper.getMainLooper());long lastPacket=0,lastPopup=0;int knownLid=-1;
+              final ScanCallback cb=new ScanCallback(){public void onScanResult(int t,ScanResult res){
+                if(res.getRssi()<-76||res.getScanRecord()==null)return;
+                byte[] b=res.getScanRecord().getManufacturerSpecificData(0x4c);Levels v=Levels.parse(b);if(v==null)return;
+                long now=SystemClock.elapsedRealtime();boolean fresh=now-lastPacket>18000;lastPacket=now;int lid=v.lid(b);
+                if(lid==1&&(knownLid==0||(knownLid==-1&&fresh))&&now-lastPopup>8000){lastPopup=now;show(v);}knownLid=lid;
+                if(lid==0)h.post(()->hide());
+              }};
+              @Override public IBinder onBind(Intent i){return null;}
+              @Override public void onCreate(){super.onCreate();wm=(WindowManager)getSystemService(WINDOW_SERVICE);}
+              @Override public int onStartCommand(Intent i,int flags,int id){
+                NotificationManager nm=getSystemService(NotificationManager.class);nm.createNotificationChannel(new NotificationChannel("pods","AirPods 4",NotificationManager.IMPORTANCE_LOW));
+                Notification n=new Notification.Builder(this,"pods").setContentTitle("AirPods 4 Popup").setContentText("Отслеживание кейса").setSmallIcon(android.R.drawable.stat_sys_data_bluetooth).build();
+                try{startForeground(101,n,android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE);}catch(Exception e){stopSelf();return START_NOT_STICKY;}
+                if(i!=null&&DEMO.equals(i.getAction())){show(new Levels(90,80,70,false));return START_STICKY;}
+                try{BluetoothManager bm=(BluetoothManager)getSystemService(BLUETOOTH_SERVICE);BluetoothAdapter ba=bm.getAdapter();if(ba!=null&&ba.isEnabled()){
+                  scanner=ba.getBluetoothLeScanner();ScanFilter f=new ScanFilter.Builder().setManufacturerData(0x4c,new byte[]{7},new byte[]{(byte)255}).build();
+                  if(scanner!=null)scanner.startScan(Collections.singletonList(f),new ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_POWER).build(),cb);
+                }}catch(Exception ignored){}
+                return START_STICKY;
+              }
+              void show(Levels v){h.post(()->{hide();if(!Settings.canDrawOverlays(this))return;
+                FrameLayout bg=new FrameLayout(this);bg.setBackgroundColor(0x33000000);BatteryCard card=new BatteryCard(this,v);
+                FrameLayout.LayoutParams cp=new FrameLayout.LayoutParams(-1,d(this,340),Gravity.BOTTOM);bg.addView(card,cp);bg.setOnClickListener(x->hide());
+                WindowManager.LayoutParams wp=new WindowManager.LayoutParams(-1,-1,WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,PixelFormat.TRANSLUCENT);
+                popup=bg;try{wm.addView(bg,wp);card.setAlpha(0);card.setTranslationY(70);card.animate().alpha(1).translationY(0).setDuration(330).start();}catch(Exception e){popup=null;return;}
+                h.postDelayed(()->{if(popup==bg)hide();},6500);
+              });}
+              void hide(){if(popup!=null){try{wm.removeView(popup);}catch(Exception ignored){}popup=null;}}
+              @Override public void onDestroy(){if(scanner!=null)try{scanner.stopScan(cb);}catch(Exception ignored){}hide();super.onDestroy();}
+            }
+          }
+          EOF
+      - name: Build APK
+        run: cd airpods4 && gradle --no-daemon :app:assembleDebug
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AirPods4Popup-v0.2-debug
+          path: airpods4/app/build/outputs/apk/debug/app-debug.apk
